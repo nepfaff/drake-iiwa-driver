@@ -43,8 +43,10 @@ const char* kLcmStatusTelemetryChannel = "IIWA_STATUS_TELEMETRY";
 const char* kLcmCommandChannel = "IIWA_COMMAND";
 const double kJointLimitSafetyMarginDegree = 1;
 const double kJointTorqueSafetyMarginNm = 60;
-const double kJointTorqueSafetyMarginScale[kNumJoints] = {
-    1, 1, 1, 0.5, 0.2, 0.2, 0.1};
+const double kJointTorqueExtLimitNm[kNumJoints] = {
+    165, 165, 100, 100, 100, 32, 32};
+const char* kJointTorqueSafetyMarginScale = "170, 170, 105, 105, 105, 35, 35"; // iiwa7 limits
+// const char* kJointTorqueSafetyMarginScale = "310, 310, 170, 170, 105, 35, 35"; // iiwa14 limits
 const double kTorqueOnlyKp[kNumJoints] = {
     1000, 1000, 1000, 500, 500, 500, 500};
 const double kTorqueOnlyKd[kNumJoints] = {
@@ -75,7 +77,7 @@ int64_t micros() {
 
 DEFINE_double(ext_trq_limit, kJointTorqueSafetyMarginNm,
               "Maximal external torque that triggers safety freeze");
-DEFINE_string(joint_ext_trq_limit, "", "Specify the maximum external torque "
+DEFINE_string(joint_ext_trq_limit, kJointTorqueSafetyMarginScale, "Specify the maximum external torque "
               "that triggers safety freeze on a per-joint basis.  "
               "This is a comma separated list of numbers e.g. "
               "100,100,53.7,30,30,28.5,10.  Overrides ext_trq_limit.");
@@ -340,6 +342,8 @@ class KukaLCMClient  {
       const double ext_torque =
           lcm_status_.joint_torque_external[joint_offset + i];
       if (std::fabs(ext_torque) > external_torque_limit_[i]) {
+        std::cerr << "Joint " << i << " external torque " << ext_torque
+                  << " exceeds limit " << external_torque_limit_[i] << "\n";
         return false;
       }
     }
@@ -519,6 +523,7 @@ class KukaFRIClient : public KUKA::FRI::LBRClient {
               << " control " << state.getControlMode()
               << " command " << state.getClientCommandMode()
               << " overlay " << state.getOverlayType()
+              << " torque only " << FLAGS_torque_only
               << std::endl;
 
     if (newState == KUKA::FRI::COMMANDING_ACTIVE) {
